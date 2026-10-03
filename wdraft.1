@@ -1,0 +1,174 @@
+.TH WDRAFT 1 2026-10-03 "wdraft 0.1.0"
+.SH NAME
+wdraft \- drag-and-drop source/sink for Wayland, with no visible window
+.SH SYNOPSIS
+.B wdraft
+.I COMMAND
+.RI [ OPTION ].\|.\|.
+.RI [ FILE ].\|.\|.
+.SH DESCRIPTION
+.B wdraft
+drags files into applications that only accept drag-and-drop, without opening
+a window to drag from. Files are kept in a
+.IR stash ;
+you then put the pointer over the drop target and run
+.B wdraft drop
+from a compositor keybind, and the drop happens there. The pointer never moves
+and nothing is drawn on screen.
+.PP
+It requires a Wayland compositor supporting
+.B wlr-layer-shell
+and
+.BR wlr-virtual-pointer ,
+which in practice means wlroots-based ones (sway, Hyprland, river, Wayfire,
+labwc, niri). It is not an X11 program.
+.SH COMMANDS
+.TP
+.BI "add " "FILE.\|.\|." " | -"
+Add files to the stash. A lone
+.B -
+reads one path per line from standard input. Paths are resolved to absolute and
+must exist.
+.TP
+.BI "set " "FILE.\|.\|." " | -"
+Replace the stash instead of appending to it.
+.TP
+.B list
+Print the stash as
+.B file://
+URIs, or as plain paths with
+.BR \-\-print\-path .
+.TP
+.B clear
+Empty the stash.
+.TP
+.BI "drop " "[FILE.\|.\|.]"
+Drop the stash onto whatever is under the pointer. With FILE arguments, drops
+those instead and leaves the stash alone. On success the stash is cleared
+unless
+.B \-\-keep
+is given.
+.TP
+.B catch
+Print to standard output whatever is dropped anywhere on the screen. The whole
+output becomes an invisible drop target, so you need not aim at a window.
+.TP
+.B copy
+Put the stash on the clipboard as
+.B text/uri-list
+instead of dragging. Use this for targets that accept a paste but not a drop.
+Backgrounds itself to retain clipboard ownership.
+.SH OPTIONS
+.TP
+.BR \-k ", " \-\-keep
+With
+.BR drop ,
+do not clear the stash after a successful drop.
+.TP
+.BR \-p ", " \-\-print\-path
+Print filesystem paths instead of URIs
+.RB ( list ", " catch ).
+.TP
+.BR \-x ", " \-\-and\-exit
+With
+.BR catch ,
+exit after one completed drop.
+.TP
+.BI \-t " MS" "\fR, \fP" \-\-timeout " MS"
+Give up on a drop after MS milliseconds. Default 5000.
+.TP
+.BI \-s " MS" "\fR, \fP" \-\-settle " MS"
+How long
+.B drop
+waits for the target to answer the drag before releasing the button. Default
+600. Raise it for slow or heavily loaded targets; a target that has not
+answered by then will not receive the drop.
+.TP
+.BR \-v ", " \-\-verbose
+Report what happens on standard error: cursor position, the button serial, the
+MIME type negotiated, bytes transferred.
+.TP
+.B \-\-help
+.TQ
+.B \-\-version
+Show usage or version and exit.
+.SH "EXIT STATUS"
+.TP
+.B 0
+The drop completed.
+.TP
+.B 1
+Usage error, or an empty stash.
+.TP
+.B 2
+Nothing under the pointer accepted the drop. The stash is left alone.
+.TP
+.B 3
+Timed out waiting for the drop to complete.
+.TP
+.B 4
+No Wayland display, or the compositor lacks a required protocol.
+.SH EXAMPLES
+Stash a file, then drop it from a keybind. In your sway config:
+.PP
+.RS
+.nf
+bindsym $mod+d exec wdraft drop
+.fi
+.RE
+.PP
+.RS
+.nf
+$ wdraft add ~/photo.png
+.fi
+.RE
+.PP
+Then hover the upload area and press $mod+d.
+.PP
+To try it without a keybind, give yourself time to aim:
+.PP
+.RS
+.nf
+$ wdraft add ~/photo.png && sleep 3 && wdraft -v drop
+.fi
+.RE
+.PP
+Receive files from another application:
+.PP
+.RS
+.nf
+$ wdraft catch -p
+.fi
+.RE
+.PP
+Pipe a selection in, and keep it for several drops:
+.PP
+.RS
+.nf
+$ find . -name '*.pdf' | wdraft set -
+$ wdraft drop --keep
+.fi
+.RE
+.SH NOTES
+Wayland does not let a client start a drag out of nowhere:
+.B wl_data_device.start_drag
+needs a serial from a real button event on a surface the client owns. Nor do
+the clipboard protocols help, as
+.B ext-data-control
+covers selections only.
+.B wdraft
+therefore maps a fully transparent fullscreen layer-shell surface to capture
+the pointer where it already is, synthesises a left-button press on it with
+.BR wlr-virtual-pointer ,
+and once it holds the serial makes the surface input-transparent so the
+compositor hands the drag to the real target underneath. Releasing the button
+performs the drop.
+.PP
+Running
+.B drop
+from a terminal aims at the terminal. Use a keybind, or the
+.B sleep
+form above.
+.SH "SEE ALSO"
+.BR wl-copy (1),
+.BR swaymsg (1)

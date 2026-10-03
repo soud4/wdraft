@@ -1,0 +1,73 @@
+wdraft - drag-and-drop source/sink for Wayland, without a window
+
+Many programs, particularly web applications, only accept files that are
+dragged into them. The usual answer is a helper that opens a window full of
+draggable buttons -- but that means a visible window, a toolkit dependency,
+and actually dragging with the mouse from the window to the target.
+
+wdraft does the same job with no window and no dragging. Files go into a
+stash, you put the pointer over the drop target, and a keybind does the drop:
+
+  wdraft add photo.png          # stash it
+  <hover the upload area>
+  <press your keybind>          # bindsym $mod+d exec wdraft drop
+
+The pointer never moves and nothing is ever drawn on screen. The stash
+survives across drops until you clear it, so you can stash once and drop into
+several places.
+
+Other direction: wdraft catch turns the whole screen into an invisible drop
+target and prints whatever is dropped on it to standard output.
+
+For targets that take a paste but not a drop, wdraft copy puts the stash on
+the clipboard as text/uri-list.
+
+Try it without setting up a keybind by giving yourself time to aim:
+
+  wdraft add photo.png && sleep 3 && wdraft -v drop
+
+See wdraft(1) for all commands, options and exit codes.
+
+How it works
+------------
+Wayland deliberately does not let a client begin a drag out of nowhere:
+wl_data_device.start_drag requires a serial from a real button event on a
+surface the client itself owns. The clipboard protocols are no help either --
+ext-data-control and wlr-data-control cover selections, not drag-and-drop.
+
+So wdraft manufactures that event. It maps a fully transparent fullscreen
+layer-shell surface, which captures the pointer exactly where it already is,
+and synthesises a left-button press on it through wlr-virtual-pointer. With
+the serial in hand it starts the drag, then makes its own surface
+input-transparent so the compositor hands the drag session to the real target
+underneath, waits for that target to accept, and releases the button. The
+compositor performs the drop.
+
+The "invisible space" holding your files needs no running process: the stash
+is a plain file in $XDG_RUNTIME_DIR/wdraft/stash. There is no daemon.
+
+Requirements
+------------
+A compositor with wlr-layer-shell and wlr-virtual-pointer -- in practice a
+wlroots-based one: sway, Hyprland, river, Wayfire, labwc, niri. GNOME and KDE
+do not expose wlr-virtual-pointer, so drop cannot work there; catch and copy
+need only layer-shell and ext-data-control respectively.
+
+wdraft is a Wayland program; there is no X11 backend.
+
+Building
+--------
+Build dependencies: wayland-client, wayland-scanner, wayland-protocols.
+No GTK, no runtime dependencies beyond libwayland-client.
+
+  make
+
+Two wlroots protocol descriptions are vendored in protocols/ because no
+distribution packages them reliably; everything else comes from
+wayland-protocols via pkg-config.
+
+To install, run `make install`, which puts it into ~/.local by default. Use
+`make PREFIX=/path/here install` for somewhere else, or
+`make NAME=other-name install` to rename the binary, man page and completion.
+
+wdraft is distributed under the GNU GPL version 3.

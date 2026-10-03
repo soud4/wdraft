@@ -1,0 +1,41 @@
+# bash completion for wdraft                               -*- shell-script -*-
+
+_wdraft() {
+    local cur prev cmd i
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # An option that takes a value: offer nothing useful.
+    case "$prev" in
+        -t|--timeout|-s|--settle) return ;;
+    esac
+
+    # Find the subcommand, if it has been typed already.
+    for ((i=1; i<COMP_CWORD; i++)); do
+        case "${COMP_WORDS[i]}" in
+            -*) ;;
+            *) cmd="${COMP_WORDS[i]}"; break ;;
+        esac
+    done
+
+    if [[ -z $cmd ]]; then
+        COMPREPLY=($(compgen -W "add set list clear drop catch copy" -- "$cur"))
+        return
+    fi
+
+    if [[ $cur == -* ]]; then
+        local opts="-v --verbose --help --version"
+        case "$cmd" in
+            drop) opts="$opts -k --keep -t --timeout -s --settle" ;;
+            catch) opts="$opts -p --print-path -x --and-exit -t --timeout" ;;
+            list) opts="$opts -p --print-path" ;;
+        esac
+        COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+        return
+    fi
+
+    case "$cmd" in
+        add|set|drop) COMPREPLY=($(compgen -f -- "$cur")); compopt -o filenames ;;
+    esac
+}
+complete -F _wdraft wdraft
